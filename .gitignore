@@ -18,3 +18,4 @@ iwe-server-upload
 
 # Dependency directories
 vendor/
+credentials/
