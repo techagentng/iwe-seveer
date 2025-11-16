@@ -1,0 +1,11 @@
+Date,Description,Debit,Credit,Balance,Currency
+2024-01-15,ATM Withdrawal,5000.00,,45000.00,NGN
+2024-01-16,Salary Deposit,,150000.00,195000.00,NGN
+2024-01-17,Transfer to John Doe,25000.00,,170000.00,NGN
+2024-01-18,POS Purchase - Supermarket,12500.50,,157499.50,NGN
+2024-01-19,Online Transfer Received,,30000.00,187499.50,NGN
+2024-01-20,Utility Bill Payment,8500.00,,178999.50,NGN
+2024-01-21,Restaurant Payment,4200.00,,174799.50,NGN
+2024-01-22,Freelance Income,,75000.00,249799.50,NGN
+2024-01-23,Rent Payment,120000.00,,129799.50,NGN
+2024-01-24,Mobile Recharge,1000.00,,128799.50,NGN

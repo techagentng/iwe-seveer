@@ -1,0 +1,20 @@
+# Credentials and secrets
+credentials/
+.env
+.env.local
+.env.*.local
+
+# Binaries
+iwe-server
+iwe-server-upload
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+*.out
+
+# Dependency directories
+vendor/
