@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Debug                        bool   `envconfig:"debug"`
 	Port                         int    `envconfig:"port"`
+	DatabaseURL                  string `envconfig:"database_url"` 
 	PostgresHost                 string `envconfig:"postgres_host"`
 	PostgresUser                 string `envconfig:"postgres_user"`
 	PostgresDB                   string `envconfig:"postgres_db"`
@@ -42,6 +43,12 @@ type Config struct {
 }
 
 func (c *Config) GetDBUrl() string {
+	// If DATABASE_URL is provided (Render, Railway, Heroku), use it directly
+	if c.DatabaseURL != "" {
+		return c.DatabaseURL
+	}
+	
+	// Otherwise, construct from individual fields
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		c.PostgresUser,
