@@ -40,6 +40,13 @@ type Config struct {
 	AWS_SECRET_ACCESS_KEY        string `envconfig:"aws_secret_access_key"`
 	FRONTEND_URL        string `envconfig:"frontend_url"`
 	GOOGLE_CLOUD_PROJECT string `envconfig:"google_cloud_project"`
+	
+	// Redis Configuration
+	RedisURL      string `envconfig:"redis_url"`      // For production (Render/Railway)
+	RedisHost     string `envconfig:"redis_host"`     // For local development
+	RedisPort     string `envconfig:"redis_port"`     // For local development
+	RedisPassword string `envconfig:"redis_password"` // Optional
+	RedisDB       int    `envconfig:"redis_db"`       // Default 0
 }
 
 func (c *Config) GetDBUrl() string {
@@ -57,6 +64,23 @@ func (c *Config) GetDBUrl() string {
 		c.PostgresPort,
 		c.PostgresDB,
 	)
+}
+
+func (c *Config) GetRedisAddr() string {
+	// If REDIS_URL is provided (production), use it
+	if c.RedisURL != "" {
+		return c.RedisURL
+	}
+	
+	// Otherwise, construct from host:port (local development)
+	if c.RedisHost == "" {
+		c.RedisHost = "localhost"
+	}
+	if c.RedisPort == "" {
+		c.RedisPort = "6379"
+	}
+	
+	return fmt.Sprintf("%s:%s", c.RedisHost, c.RedisPort)
 }
 
 func Load() (*Config, error) {

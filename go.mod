@@ -14,6 +14,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mailgun/mailgun-go/v4 v4.23.0
+	github.com/redis/go-redis/v9 v9.16.0
 	golang.org/x/crypto v0.42.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1

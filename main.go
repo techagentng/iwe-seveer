@@ -8,7 +8,6 @@ import (
 	"github.com/techagentng/iweapp/mailingservices"
 	"github.com/techagentng/iweapp/server"
 	"github.com/techagentng/iweapp/services"
-	"github.com/go-redis/redis/v8"
 )
 
 func main() {
@@ -18,14 +17,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-
-
 	// Initialize Redis
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379", // Adjust to your Redis server address
-		Password: "",               // No password by default
-		DB:       0,                // Default DB
-	})
+	redisClient, err := db.InitRedis(conf)
+	if err != nil {
+		log.Fatalf("Failed to initialize Redis: %v", err)
+	}
+	defer db.CloseRedis(redisClient)
 
 	// Initialize Mailgun client
 	mailgunClient := &mailingservices.Mailgun{}

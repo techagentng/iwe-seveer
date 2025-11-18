@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/techagentng/iweapp/config"
 	"github.com/techagentng/iweapp/db"
 	"github.com/techagentng/iweapp/mailingservices"
@@ -32,7 +32,6 @@ type Server struct {
 // Server serves requests to DB with rout
 func (s *Server) Start() {
 	r := s.setupRouter()
-	// TODO: user config.PORT here
 	PORT := fmt.Sprintf(":%s", os.Getenv("PORT"))
 	if PORT == ":" {
 		PORT = ":8080"
