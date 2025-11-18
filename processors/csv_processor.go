@@ -277,3 +277,33 @@ func (p *CSVProcessor) handleProcessingError(file *models.UploadedFile, err erro
 	
 	return err
 }
+
+// ConvertStatementsToText converts bank statements to readable text format
+func (p *CSVProcessor) ConvertStatementsToText(statements []models.BankStatement) string {
+	if len(statements) == 0 {
+		return "No bank statements found."
+	}
+
+	var text string
+	text += fmt.Sprintf("Bank Statement Summary\n")
+	text += fmt.Sprintf("======================\n\n")
+	text += fmt.Sprintf("Total Transactions: %d\n\n", len(statements))
+
+	for i, stmt := range statements {
+		text += fmt.Sprintf("Transaction #%d\n", i+1)
+		text += fmt.Sprintf("Date: %s\n", stmt.TransactionDate.Format("2006-01-02"))
+		text += fmt.Sprintf("Description: %s\n", stmt.Description)
+		
+		if stmt.DebitAmount != nil && *stmt.DebitAmount > 0 {
+			text += fmt.Sprintf("Debit: %.2f %s\n", *stmt.DebitAmount, stmt.Currency)
+		}
+		if stmt.CreditAmount != nil && *stmt.CreditAmount > 0 {
+			text += fmt.Sprintf("Credit: %.2f %s\n", *stmt.CreditAmount, stmt.Currency)
+		}
+		
+		text += fmt.Sprintf("Balance: %.2f %s\n", stmt.Balance, stmt.Currency)
+		text += "\n"
+	}
+
+	return text
+}

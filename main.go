@@ -53,6 +53,17 @@ func main() {
 	wsHub := websocket.NewHub()
 	go wsHub.Run() // Start hub in background
 	log.Println("✅ WebSocket Hub started")
+	
+	// Worker Pool
+	workerPool := queue.NewWorkerPool(queue.WorkerPoolConfig{
+		NumWorkers:   3, // Start with 3 workers
+		QueueManager: queueManager,
+		UploadRepo:   uploadRepo,
+		WSHub:        wsHub,
+		DB:           gormDB.DB,
+	})
+	go workerPool.Start() // Start workers in background
+	log.Println("✅ Worker Pool started with 3 workers")
 
 	// Server setup
 	s := &server.Server{
