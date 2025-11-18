@@ -6,6 +6,7 @@ import (
 	"github.com/techagentng/iweapp/config"
 	"github.com/techagentng/iweapp/db"
 	"github.com/techagentng/iweapp/mailingservices"
+	"github.com/techagentng/iweapp/queue"
 	"github.com/techagentng/iweapp/server"
 	"github.com/techagentng/iweapp/services"
 )
@@ -42,6 +43,10 @@ func main() {
 
 	// Services
 	authService := services.NewAuthService(authRepo, conf)
+	
+	// Queue Manager
+	queueManager := queue.NewQueueManager(redisClient)
+	log.Println("✅ Queue Manager initialized")
 
 	// Server setup
 	s := &server.Server{
@@ -52,6 +57,7 @@ func main() {
 		UploadRepository: uploadRepo,
 		DB:               gormDB.DB,
 		RedisClient:      redisClient,
+		QueueManager:     queueManager,
 	}
 
 	// Start server

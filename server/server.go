@@ -14,6 +14,7 @@ import (
 	"github.com/techagentng/iweapp/config"
 	"github.com/techagentng/iweapp/db"
 	"github.com/techagentng/iweapp/mailingservices"
+	"github.com/techagentng/iweapp/queue"
 	"github.com/techagentng/iweapp/services"
 	"gorm.io/gorm"
 )
@@ -24,9 +25,10 @@ type Server struct {
 	AuthService              services.AuthService
 	UploadRepository         db.UploadRepository
 	Mail                     mailingservices.Mailer
-	DB *gorm.DB 
+	DB                       *gorm.DB 
 	SessionSecret            string
 	RedisClient              *redis.Client
+	QueueManager             *queue.QueueManager
 }
 
 // Server serves requests to DB with rout

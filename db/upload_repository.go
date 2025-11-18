@@ -22,6 +22,13 @@ type UploadRepository interface {
 	CreateDocumentChunk(chunk *models.DocumentChunk) error
 	BatchCreateDocumentChunks(chunks []models.DocumentChunk) error
 	GetDocumentChunksByFileID(fileID uuid.UUID) ([]models.DocumentChunk, error)
+	
+	// Processing Jobs
+	CreateProcessingJob(job *models.ProcessingJob) error
+	UpdateProcessingJob(job *models.ProcessingJob) error
+	GetProcessingJobByID(id uuid.UUID) (*models.ProcessingJob, error)
+	GetProcessingJobsByUserID(userID uuid.UUID, limit, offset int) ([]models.ProcessingJob, error)
+	GetProcessingJobsByStatus(status models.JobStatus, limit int) ([]models.ProcessingJob, error)
 }
 
 // uploadRepository implements UploadRepository
@@ -162,5 +169,81 @@ func (r *uploadRepository) GetDocumentChunksByFileID(fileID uuid.UUID) ([]models
 		log.Printf("GetDocumentChunksByFileID: error retrieving chunks: %v", err)
 		return nil, fmt.Errorf("failed to retrieve document chunks: %w", err)
 	}
+	
 	return chunks, nil
+}
+
+// CreateProcessingJob creates a new processing job record
+func (r *uploadRepository) CreateProcessingJob(job *models.ProcessingJob) error {
+	if err := r.db.Create(job).Error; err != nil {
+		log.Printf("CreateProcessingJob: error creating job: %v", err)
+		return fmt.Errorf("failed to create processing job: %w", err)
+	}
+	
+	log.Printf("Created processing job: %s", job.ID)
+	return nil
+}
+
+// UpdateProcessingJob updates an existing processing job
+func (r *uploadRepository) UpdateProcessingJob(job *models.ProcessingJob) error {
+	if err := r.db.Save(job).Error; err != nil {
+		log.Printf("UpdateProcessingJob: error updating job: %v", err)
+		return fmt.Errorf("failed to update processing job: %w", err)
+	}
+	
+	return nil
+}
+
+// GetProcessingJobByID retrieves a processing job by its ID
+func (r *uploadRepository) GetProcessingJobByID(id uuid.UUID) (*models.ProcessingJob, error) {
+	var job models.ProcessingJob
+	if err := r.db.Where("id = ?", id).
+		Preload("User").
+		Preload("UploadedFile").
+		First(&job).Error; err != nil {
+		log.Printf("GetProcessingJobByID: error retrieving job: %v", err)
+		return nil, fmt.Errorf("failed to retrieve processing job: %w", err)
+	}
+	
+	return &job, nil
+}
+
+// GetProcessingJobsByUserID retrieves all processing jobs for a user
+func (r *uploadRepository) GetProcessingJobsByUserID(userID uuid.UUID, limit, offset int) ([]models.ProcessingJob, error) {
+	var jobs []models.ProcessingJob
+	query := r.db.Where("user_id = ?", userID).
+		Preload("UploadedFile").
+		Order("created_at DESC")
+	
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
+	}
+	
+	if err := query.Find(&jobs).Error; err != nil {
+		log.Printf("GetProcessingJobsByUserID: error retrieving jobs: %v", err)
+		return nil, fmt.Errorf("failed to retrieve user jobs: %w", err)
+	}
+	
+	return jobs, nil
+}
+
+// GetProcessingJobsByStatus retrieves jobs by status
+func (r *uploadRepository) GetProcessingJobsByStatus(status models.JobStatus, limit int) ([]models.ProcessingJob, error) {
+	var jobs []models.ProcessingJob
+	query := r.db.Where("status = ?", status).
+		Order("created_at ASC")
+	
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	
+	if err := query.Find(&jobs).Error; err != nil {
+		log.Printf("GetProcessingJobsByStatus: error retrieving jobs: %v", err)
+		return nil, fmt.Errorf("failed to retrieve jobs by status: %w", err)
+	}
+	
+	return jobs, nil
 }

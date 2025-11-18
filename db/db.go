@@ -89,6 +89,7 @@ func migrate(db *gorm.DB) error {
 		&models.UploadedFile{},
 		&models.BankStatement{},
 		&models.DocumentChunk{},
+		&models.ProcessingJob{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run auto migrations: %w", err)
