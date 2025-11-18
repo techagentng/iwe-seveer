@@ -16,6 +16,7 @@ import (
 	"github.com/techagentng/iweapp/mailingservices"
 	"github.com/techagentng/iweapp/queue"
 	"github.com/techagentng/iweapp/services"
+	"github.com/techagentng/iweapp/websocket"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +30,7 @@ type Server struct {
 	SessionSecret            string
 	RedisClient              *redis.Client
 	QueueManager             *queue.QueueManager
+	WSHub                    *websocket.Hub
 }
 
 // Server serves requests to DB with rout

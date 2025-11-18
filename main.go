@@ -9,6 +9,7 @@ import (
 	"github.com/techagentng/iweapp/queue"
 	"github.com/techagentng/iweapp/server"
 	"github.com/techagentng/iweapp/services"
+	"github.com/techagentng/iweapp/websocket"
 )
 
 func main() {
@@ -47,6 +48,11 @@ func main() {
 	// Queue Manager
 	queueManager := queue.NewQueueManager(redisClient)
 	log.Println("✅ Queue Manager initialized")
+	
+	// WebSocket Hub
+	wsHub := websocket.NewHub()
+	go wsHub.Run() // Start hub in background
+	log.Println("✅ WebSocket Hub started")
 
 	// Server setup
 	s := &server.Server{
@@ -58,6 +64,7 @@ func main() {
 		DB:               gormDB.DB,
 		RedisClient:      redisClient,
 		QueueManager:     queueManager,
+		WSHub:            wsHub,
 	}
 
 	// Start server

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"time"
+	
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/techagentng/iweapp/websocket"
 )
 
 func (s *Server) setupRouter() *gin.Engine {
@@ -67,6 +69,9 @@ func (s *Server) setupRouter() *gin.Engine {
 
 func (s *Server) defineRoutes(router *gin.Engine) {
 	apirouter := router.Group("/api/v1")
+	
+	// WebSocket endpoint (requires authentication)
+	router.GET("/ws", s.Authorize(), websocket.HandleWebSocketAuth(s.WSHub))
 	
 	// Public routes (no authentication required)
 	apirouter.POST("/auth/signup", s.handleSignup())
