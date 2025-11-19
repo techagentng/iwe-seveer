@@ -14,10 +14,11 @@ import (
 
 const (
 	// Redis keys
-	JobQueueKey       = "iwe:jobs:queue"        // List for job queue
-	JobKeyPrefix      = "iwe:job:"              // Hash for job details
-	UserJobsKeyPrefix = "iwe:user:jobs:"        // Set of job IDs per user
-	JobTTL            = 24 * time.Hour          // Job data retention
+	JobQueueKey         = "iwe:jobs:queue"          // List for job queue (FIFO)
+	JobPriorityQueueKey = "iwe:jobs:priority_queue" // Sorted set for priority queue
+	JobKeyPrefix        = "iwe:job:"                // Hash for job details
+	UserJobsKeyPrefix   = "iwe:user:jobs:"          // Set of job IDs per user
+	JobTTL              = 24 * time.Hour            // Job data retention
 )
 
 // QueueManager handles job queue operations using Redis
@@ -55,18 +56,50 @@ func (qm *QueueManager) EnqueueJob(job *models.ProcessingJob) error {
 	}
 	qm.redis.Expire(qm.ctx, userJobsKey, JobTTL)
 
-	// Push job ID to processing queue
-	if err := qm.redis.RPush(qm.ctx, JobQueueKey, job.ID.String()).Err(); err != nil {
-		return fmt.Errorf("failed to enqueue job: %w", err)
+	// Enqueue based on priority
+	if job.Priority > 0 {
+		// Use priority queue (sorted set) - higher priority = lower score for ZPOPMIN
+		score := float64(-job.Priority) // Negative so higher priority comes first
+		if err := qm.redis.ZAdd(qm.ctx, JobPriorityQueueKey, redis.Z{
+			Score:  score,
+			Member: job.ID.String(),
+		}).Err(); err != nil {
+			return fmt.Errorf("failed to enqueue priority job: %w", err)
+		}
+		log.Printf("📋 Priority job enqueued: %s (priority: %d, user: %s)", job.ID, job.Priority, job.UserID)
+	} else {
+		// Use regular FIFO queue
+		if err := qm.redis.RPush(qm.ctx, JobQueueKey, job.ID.String()).Err(); err != nil {
+			return fmt.Errorf("failed to enqueue job: %w", err)
+		}
+		log.Printf("📋 Job enqueued: %s (user: %s, file: %s)", job.ID, job.UserID, job.FileName)
 	}
 
-	log.Printf("📋 Job enqueued: %s (user: %s, file: %s)", job.ID, job.UserID, job.FileName)
 	return nil
 }
 
 // DequeueJob retrieves the next job from the queue (blocking operation)
+// Checks priority queue first, then regular queue
 func (qm *QueueManager) DequeueJob(timeout time.Duration) (*models.ProcessingJob, error) {
-	// Blocking pop from queue
+	// First, check priority queue (non-blocking)
+	priorityResult, err := qm.redis.ZPopMin(qm.ctx, JobPriorityQueueKey, 1).Result()
+	if err == nil && len(priorityResult) > 0 {
+		jobID := priorityResult[0].Member.(string)
+		job, err := qm.GetJob(uuid.MustParse(jobID))
+		if err == nil {
+			// Check if job is ready to run (for scheduled jobs)
+			if job.IsReadyToRun() {
+				return job, nil
+			}
+			// Not ready yet, re-enqueue
+			qm.redis.ZAdd(qm.ctx, JobPriorityQueueKey, redis.Z{
+				Score:  priorityResult[0].Score,
+				Member: jobID,
+			})
+		}
+	}
+
+	// Then check regular queue (blocking with timeout)
 	result, err := qm.redis.BLPop(qm.ctx, timeout, JobQueueKey).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -82,7 +115,19 @@ func (qm *QueueManager) DequeueJob(timeout time.Duration) (*models.ProcessingJob
 	jobID := result[1]
 
 	// Retrieve job details
-	return qm.GetJob(uuid.MustParse(jobID))
+	job, err := qm.GetJob(uuid.MustParse(jobID))
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if scheduled job is ready
+	if !job.IsReadyToRun() {
+		// Re-enqueue for later
+		qm.redis.RPush(qm.ctx, JobQueueKey, jobID)
+		return nil, nil
+	}
+
+	return job, nil
 }
 
 // GetJob retrieves a job by its ID

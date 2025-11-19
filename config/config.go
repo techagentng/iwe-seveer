@@ -47,6 +47,9 @@ type Config struct {
 	RedisPort     string `envconfig:"redis_port"`     // For local development
 	RedisPassword string `envconfig:"redis_password"` // Optional
 	RedisDB       int    `envconfig:"redis_db"`       // Default 0
+	
+	// OpenAI Configuration
+	OpenAIAPIKey string `envconfig:"openai_api_key"` // OpenAI API key for GPT-4o-mini
 }
 
 func (c *Config) GetDBUrl() string {

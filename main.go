@@ -9,6 +9,7 @@ import (
 	"github.com/techagentng/iweapp/queue"
 	"github.com/techagentng/iweapp/server"
 	"github.com/techagentng/iweapp/services"
+	"github.com/techagentng/iweapp/services/ai"
 	"github.com/techagentng/iweapp/websocket"
 )
 
@@ -45,6 +46,9 @@ func main() {
 	// Services
 	authService := services.NewAuthService(authRepo, conf)
 	
+	// OpenAI Service
+	aiService := ai.NewOpenAIService(conf.OpenAIAPIKey)
+	
 	// Queue Manager
 	queueManager := queue.NewQueueManager(redisClient)
 	log.Println("✅ Queue Manager initialized")
@@ -60,6 +64,7 @@ func main() {
 		QueueManager: queueManager,
 		UploadRepo:   uploadRepo,
 		WSHub:        wsHub,
+		AIService:    aiService,
 		DB:           gormDB.DB,
 	})
 	go workerPool.Start() // Start workers in background

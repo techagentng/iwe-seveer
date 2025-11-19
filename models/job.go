@@ -30,6 +30,10 @@ type ProcessingJob struct {
 	// User's question/prompt about the document
 	Prompt      string     `json:"prompt" gorm:"type:text"`
 	
+	// Priority and scheduling
+	Priority    int        `json:"priority" gorm:"default:0;index"` // Higher = more important
+	ScheduledAt *time.Time `json:"scheduled_at,omitempty" gorm:"index"` // For delayed execution
+	
 	// Processing status and progress
 	Status      JobStatus  `json:"status" gorm:"type:varchar(20);default:'queued';index"`
 	Progress    int        `json:"progress" gorm:"default:0"` // 0-100
@@ -88,4 +92,12 @@ func (j *ProcessingJob) Duration() time.Duration {
 	}
 	
 	return endTime.Sub(*j.StartedAt)
+}
+
+// IsReadyToRun checks if a scheduled job is ready to execute
+func (j *ProcessingJob) IsReadyToRun() bool {
+	if j.ScheduledAt == nil {
+		return true // Not scheduled, can run immediately
+	}
+	return time.Now().After(*j.ScheduledAt) || time.Now().Equal(*j.ScheduledAt)
 }

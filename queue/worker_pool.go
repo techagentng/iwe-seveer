@@ -6,6 +6,7 @@ import (
 
 	"github.com/techagentng/iweapp/db"
 	"github.com/techagentng/iweapp/processors"
+	"github.com/techagentng/iweapp/services/ai"
 	"github.com/techagentng/iweapp/websocket"
 	"gorm.io/gorm"
 )
@@ -17,6 +18,7 @@ type WorkerPool struct {
 	queueManager *QueueManager
 	uploadRepo   db.UploadRepository
 	wsHub        *websocket.Hub
+	aiService    *ai.OpenAIService
 	gormDB       *gorm.DB
 	stopChan     chan bool
 	wg           sync.WaitGroup
@@ -28,6 +30,7 @@ type WorkerPoolConfig struct {
 	QueueManager *QueueManager
 	UploadRepo   db.UploadRepository
 	WSHub        *websocket.Hub
+	AIService    *ai.OpenAIService
 	DB           *gorm.DB
 }
 
@@ -43,6 +46,7 @@ func NewWorkerPool(config WorkerPoolConfig) *WorkerPool {
 		queueManager: config.QueueManager,
 		uploadRepo:   config.UploadRepo,
 		wsHub:        config.WSHub,
+		aiService:    config.AIService,
 		gormDB:       config.DB,
 		stopChan:     make(chan bool),
 	}
@@ -65,6 +69,7 @@ func (wp *WorkerPool) Start() {
 			WSHub:          wp.wsHub,
 			MediaProcessor: mediaProcessor,
 			CSVProcessor:   csvProcessor,
+			AIService:      wp.aiService,
 			DB:             wp.gormDB,
 		})
 

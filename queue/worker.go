@@ -11,6 +11,7 @@ import (
 	"github.com/techagentng/iweapp/db"
 	"github.com/techagentng/iweapp/models"
 	"github.com/techagentng/iweapp/processors"
+	"github.com/techagentng/iweapp/services/ai"
 	"github.com/techagentng/iweapp/websocket"
 	"gorm.io/gorm"
 )
@@ -23,6 +24,7 @@ type Worker struct {
 	wsHub            *websocket.Hub
 	mediaProcessor   *processors.MediaProcessor
 	csvProcessor     *processors.CSVProcessor
+	aiService        *ai.OpenAIService
 	db               *gorm.DB
 	stopChan         chan bool
 	ctx              context.Context
@@ -36,6 +38,7 @@ type WorkerConfig struct {
 	WSHub          *websocket.Hub
 	MediaProcessor *processors.MediaProcessor
 	CSVProcessor   *processors.CSVProcessor
+	AIService      *ai.OpenAIService
 	DB             *gorm.DB
 }
 
@@ -48,6 +51,7 @@ func NewWorker(config WorkerConfig) *Worker {
 		wsHub:          config.WSHub,
 		mediaProcessor: config.MediaProcessor,
 		csvProcessor:   config.CSVProcessor,
+		aiService:      config.AIService,
 		db:             config.DB,
 		stopChan:       make(chan bool),
 		ctx:            context.Background(),
@@ -195,16 +199,27 @@ func (w *Worker) extractText(job *models.ProcessingJob, file *models.UploadedFil
 func (w *Worker) processWithAI(job *models.ProcessingJob, extractedText string) (string, error) {
 	w.updateJobStatus(job, models.JobStatusProcessing, 70, "Analyzing with AI...")
 
-	// TODO: Integrate with OpenAI GPT-4o-mini
-	// For now, return a placeholder response
+	// Use OpenAI GPT-4o-mini for analysis
+	var fullResponse string
+	
+	err := w.aiService.AnalyzeDocumentStream(w.ctx, extractedText, job.Prompt, func(chunk string) {
+		fullResponse += chunk
+		
+		// Send chunk via WebSocket
+		message := map[string]interface{}{
+			"type":    "ai_chunk",
+			"job_id":  job.ID.String(),
+			"chunk":   chunk,
+			"partial": fullResponse,
+		}
+		w.sendWebSocketMessage(job.UserID, message)
+	})
 
-	// Simulate AI processing time
-	time.Sleep(2 * time.Second)
+	if err != nil {
+		return "", fmt.Errorf("AI analysis failed: %w", err)
+	}
 
-	// Stream AI response chunks via WebSocket
-	response := w.generatePlaceholderAIResponse(job, extractedText)
-
-	return response, nil
+	return fullResponse, nil
 }
 
 // generatePlaceholderAIResponse generates a mock AI response
