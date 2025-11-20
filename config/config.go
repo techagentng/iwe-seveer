@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
@@ -70,9 +71,29 @@ func (c *Config) GetDBUrl() string {
 }
 
 func (c *Config) GetRedisAddr() string {
-	// If REDIS_URL is provided (production), use it
+	// If REDIS_URL is provided (production), parse it
 	if c.RedisURL != "" {
-		return c.RedisURL
+		// Remove redis:// scheme if present
+		addr := strings.TrimPrefix(c.RedisURL, "redis://")
+		addr = strings.TrimPrefix(addr, "rediss://") // Also handle TLS
+		
+		// If there's a password in the URL (redis://user:pass@host:port), extract just host:port
+		if strings.Contains(addr, "@") {
+			parts := strings.Split(addr, "@")
+			if len(parts) == 2 {
+				// Extract password if present
+				authPart := parts[0]
+				if strings.Contains(authPart, ":") {
+					passParts := strings.Split(authPart, ":")
+					if len(passParts) == 2 && c.RedisPassword == "" {
+						c.RedisPassword = passParts[1]
+					}
+				}
+				return parts[1] // Return host:port
+			}
+		}
+		
+		return addr
 	}
 	
 	// Otherwise, construct from host:port (local development)
