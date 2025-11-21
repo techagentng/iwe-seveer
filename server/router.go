@@ -37,20 +37,20 @@ func (s *Server) setupRouter() *gin.Engine {
 	r.Use(gin.Recovery())
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"https://www.iweapps.com",
-			"http://www.iweapps.com",
-			"http://localhost:3002",
-			"http://localhost:3000",
-			"http://localhost:3001",
-			"http://localhost:19006",           
-			"http://192.168.1.1:19006",        
-			"http://192.168.0.1:19006",        
-			"http://10.0.2.2:19006",           
-			"http://10.45.213.173:19006",
-			"http://127.0.0.1:19006", 
-		},
-
+		// AllowOrigins: []string{
+		// 	"https://www.iweapps.com",
+		// 	"http://www.iweapps.com",
+		// 	"http://localhost:3002",
+		// 	"http://localhost:3000",
+		// 	"http://localhost:3001",
+		// 	"http://localhost:19006",           
+		// 	"http://192.168.1.1:19006",        
+		// 	"http://192.168.0.1:19006",        
+		// 	"http://10.0.2.2:19006",           
+		// 	"http://10.45.213.173:19006",
+		// 	"http://127.0.0.1:19006", 
+		// },
+        AllowOrigins:     []string{"*"},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Origin", "Authorization", "Content-Type", "X-Client-State"},
 		ExposeHeaders: []string{"Content-Length", "X-Client-State"},
