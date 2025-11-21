@@ -37,25 +37,21 @@ func (s *Server) setupRouter() *gin.Engine {
 	r.Use(gin.Recovery())
 
 	r.Use(cors.New(cors.Config{
-		// AllowOrigins: []string{
-		// 	"https://www.iweapps.com",
-		// 	"http://www.iweapps.com",
-		// 	"http://localhost:3002",
-		// 	"http://localhost:3000",
-		// 	"http://localhost:3001",
-		// 	"http://localhost:19006",           
-		// 	"http://192.168.1.1:19006",        
-		// 	"http://192.168.0.1:19006",        
-		// 	"http://10.0.2.2:19006",           
-		// 	"http://10.45.213.173:19006",
-		// 	"http://127.0.0.1:19006", 
-		// },
-        AllowOrigins:     []string{"*"},
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Origin", "Authorization", "Content-Type", "X-Client-State"},
-		ExposeHeaders: []string{"Content-Length", "X-Client-State"},
+		AllowOrigins: []string{
+			"https://api.iweapps.com",
+			"https://iweapps.com",
+			"https://www.iweapps.com",
+			"http://localhost:3000",
+			"http://localhost:3001",
+			"http://localhost:3002",
+			"http://127.0.0.1:3000",
+			"http://localhost:5173",
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type", "X-Client-State"},
+		ExposeHeaders:    []string{"Content-Length", "X-Client-State"},
 		AllowCredentials: true,
-		MaxAge: 12 * time.Hour,
+		MaxAge:           12 * time.Hour,
 	}))
 	
 	// Increase memory limit for multipart forms
@@ -68,8 +64,18 @@ func (s *Server) setupRouter() *gin.Engine {
 func (s *Server) defineRoutes(router *gin.Engine) {
 	apirouter := router.Group("/api/v1")
 	
-	// WebSocket endpoint (requires authentication)
-	router.GET("/ws", s.Authorize(), websocket.HandleWebSocketAuth(s.WSHub))
+	// WebSocket endpoints
+	// Unified endpoint supports both authenticated and public connections
+	router.GET("/ws", s.OptionalAuthorize(), websocket.HandleWebSocketAuto(s.WSHub))
+	// Dedicated authenticated endpoint remains available
+	router.GET("/ws/auth", s.Authorize(), websocket.HandleWebSocketAuth(s.WSHub))
+	// Health check for WebSocket service
+	router.GET("/ws/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":       "ok",
+			"connected":    s.WSHub.GetConnectedUsers(),
+		})
+	})
 	
 	// Public routes (no authentication required)
 	apirouter.POST("/auth/signup", s.handleSignup())
