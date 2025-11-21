@@ -38,10 +38,8 @@ func (s *Server) setupRouter() *gin.Engine {
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
-			"https://www.citizenx.ng",
-			"http://www.citizenx.ng",
-			"https://citizenx.ng",
-			"http://citizenx.ng",
+			"https://www.iweapps.com",
+			"http://www.iweapps.com",
 			"http://localhost:3002",
 			"http://localhost:3000",
 			"http://localhost:3001",
