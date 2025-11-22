@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -92,18 +93,37 @@ func (s *Server) Authorize() gin.HandlerFunc {
 func (s *Server) OptionalAuthorize() gin.HandlerFunc {
     return func(c *gin.Context) {
         authHeader := c.Request.Header.Get("Authorization")
-        if authHeader == "" {
-            // No token provided; proceed as public request
+        var accessToken string
+
+        // 1) Header (only if well-formed and non-empty)
+        if strings.HasPrefix(authHeader, "Bearer ") {
+            t := strings.TrimSpace(authHeader[len("Bearer "):])
+            if t != "" && t != "undefined" && t != "null" {
+                accessToken = t
+            }
+        }
+
+        // 2) Cookie fallback (browser)
+        if accessToken == "" {
+            if cookie, err := c.Request.Cookie("iwe_access_token"); err == nil {
+                if v := strings.TrimSpace(cookie.Value); v != "" && v != "undefined" && v != "null" {
+                    accessToken = v
+                }
+            }
+        }
+
+        // 3) Query fallback (?token=...) - use only over TLS in production
+        if accessToken == "" {
+            if v := strings.TrimSpace(c.Query("token")); v != "" && v != "undefined" && v != "null" {
+                accessToken = v
+            }
+        }
+
+        // If no usable token, proceed as public
+        if accessToken == "" {
             c.Next()
             return
         }
-
-        if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
-            respondAndAbort(c, "Invalid authorization header", http.StatusUnauthorized, nil, errs.New("Unauthorized", http.StatusUnauthorized))
-            return
-        }
-
-        accessToken := authHeader[7:]
 
         // Check blacklist
         if s.AuthRepository.IsTokenInBlacklist(accessToken) {
