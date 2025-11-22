@@ -62,6 +62,17 @@ func (s *Server) handleSignup() gin.HandlerFunc {
 		}()
 
 		// Return response
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "iwe_access_token",
+			Value:    accessToken,
+			Path:     "/",
+			Domain:   ".iweapps.com",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+			MaxAge:   60 * 60,
+		})
+
 		response.JSON(c, "Signup successful", http.StatusCreated, models.LoginResponse{
 			UserResponse: models.UserResponse{
 				ID:        createdUser.ID,
@@ -92,6 +103,17 @@ func (s *Server) handleLogin() gin.HandlerFunc {
 			return
 		}
 
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "iwe_access_token",
+			Value:    loginResponse.AccessToken,
+			Path:     "/",
+			Domain:   ".iweapps.com",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+			MaxAge:   60 * 60,
+		})
+
 		response.JSON(c, "Login successful", http.StatusOK, loginResponse, nil)
 	}
 }
@@ -110,6 +132,17 @@ func (s *Server) handleGoogleLogin() gin.HandlerFunc {
 			response.JSON(c, "", err.Status, nil, err)
 			return
 		}
+
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "iwe_access_token",
+			Value:    loginResponse.AccessToken,
+			Path:     "/",
+			Domain:   ".iweapps.com",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+			MaxAge:   60 * 60,
+		})
 
 		response.JSON(c, "Login successful", http.StatusOK, loginResponse, nil)
 	}
@@ -155,7 +188,17 @@ func (s *Server) handleLogout() gin.HandlerFunc {
 			return
 		}
 
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "iwe_access_token",
+			Value:    "",
+			Path:     "/",
+			Domain:   ".iweapps.com",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+			MaxAge:   -1,
+		})
+
 		response.JSON(c, "Logout successful", http.StatusOK, nil, nil)
 	}
 }
-
