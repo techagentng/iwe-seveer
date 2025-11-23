@@ -25,7 +25,7 @@ var upgrader = websocket.Upgrader{
 			return true
 		}
 		// Allow localhost for development convenience
-		if origin == "http://localhost:3000" || origin == "http://localhost:5173" || origin == "http://127.0.0.1:3000" {
+		if origin == "http://localhost:3000" || origin == "http://localhost:3001" || origin == "http://localhost:5173" || origin == "http://127.0.0.1:3000" || origin == "http://127.0.0.1:3001" {
 			return true
 		}
 		log.Printf("[WS] Blocked origin during upgrade: origin=%s remote=%s", origin, r.RemoteAddr)
