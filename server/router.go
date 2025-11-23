@@ -94,4 +94,11 @@ func (s *Server) defineRoutes(router *gin.Engine) {
 		uploads.GET("/status/:id", s.handleGetUploadStatus())
 		uploads.GET("/my-uploads", s.handleGetUserUploads())
 	}
+
+	// AI routes (authentication required)
+	aiRoutes := apirouter.Group("/ai")
+	aiRoutes.Use(s.Authorize())
+	{
+		aiRoutes.POST("/analyze", s.handleAIAnalyze())
+	}
 }

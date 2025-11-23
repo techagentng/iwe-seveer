@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"log"
+	"sync"
+	"time"
 
 	"github.com/techagentng/iweapp/config"
 	"github.com/techagentng/iweapp/db"
@@ -11,6 +15,7 @@ import (
 	"github.com/techagentng/iweapp/services"
 	"github.com/techagentng/iweapp/services/ai"
 	"github.com/techagentng/iweapp/websocket"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -57,6 +62,97 @@ func main() {
 	wsHub := websocket.NewHub()
 	go wsHub.Run() // Start hub in background
 	log.Println("✅ WebSocket Hub started")
+
+	// Wire AI streaming over WebSocket using Hub.OnMessage
+	type wsClientMessage struct {
+		Type         string `json:"type"`
+		MessageID    string `json:"messageId"`
+		Content      string `json:"content"`
+		JobID        string `json:"jobId"`
+		Filename     string `json:"filename"`
+		FileType     string `json:"fileType"`
+		Timestamp    int64  `json:"timestamp"`
+		DocumentText string `json:"documentText"`
+	}
+	// Track cancel functions per message
+	var aiCancels sync.Map // key: messageId, val: context.CancelFunc
+
+	wsHub.OnMessage = func(userID uuid.UUID, payload []byte) {
+		var msg wsClientMessage
+		if err := json.Unmarshal(payload, &msg); err != nil {
+			return
+		}
+		switch msg.Type {
+		case "user_message":
+			if msg.MessageID == "" || msg.Content == "" {
+				// send error back if desired
+				return
+			}
+			// Ack and typing indicator
+			if b, err := json.Marshal(map[string]any{"type":"ack", "messageId": msg.MessageID}); err == nil {
+				wsHub.SendToUser(userID, b)
+			}
+			if b, err := json.Marshal(map[string]any{"type":"assistant_typing", "messageId": msg.MessageID}); err == nil {
+				wsHub.SendToUser(userID, b)
+			}
+			// Start streaming
+			ctx, cancel := context.WithCancel(context.Background())
+			aiCancels.Store(msg.MessageID, cancel)
+			go func(messageID string, prompt string, doc string, uid uuid.UUID) {
+				var full string
+				streamErr := aiService.AnalyzeDocumentStream(ctx, doc, prompt, func(chunk string) {
+					full += chunk
+					// stream_chunk (isLastChunk=false)
+					resp := map[string]any{
+						"type":       "stream_chunk",
+						"messageId":  messageID,
+						"content":    chunk,
+						"isLastChunk": false,
+					}
+					if b, err := json.Marshal(resp); err == nil {
+						wsHub.SendToUser(uid, b)
+					}
+				})
+				// Final message
+				if streamErr != nil {
+					if b, err := json.Marshal(map[string]any{"type":"error", "code":"ai_failed", "message": streamErr.Error(), "messageId": messageID}); err == nil {
+						wsHub.SendToUser(uid, b)
+					}
+				} else {
+					final := map[string]any{
+						"type":        "assistant_message",
+						"messageId":   messageID,
+						"content":     full,
+						"isComplete":  true,
+						"timestamp":   time.Now().UnixMilli(),
+					}
+					if b, err := json.Marshal(final); err == nil {
+						wsHub.SendToUser(uid, b)
+					}
+				}
+				aiCancels.Delete(messageID)
+			}(msg.MessageID, msg.Content, msg.DocumentText, userID)
+
+		case "cancel":
+			if v, ok := aiCancels.Load(msg.MessageID); ok {
+				if cancel, ok2 := v.(context.CancelFunc); ok2 {
+					cancel()
+				}
+				aiCancels.Delete(msg.MessageID)
+				if b, err := json.Marshal(map[string]any{"type":"error", "code":"canceled", "message":"Request canceled", "messageId": msg.MessageID}); err == nil {
+					wsHub.SendToUser(userID, b)
+				}
+			}
+
+		case "file_uploaded":
+			// Optional: ack file notification; real job updates should be sent by workers as they progress
+			if msg.JobID != "" {
+				if b, err := json.Marshal(map[string]any{"type":"ack", "jobId": msg.JobID}); err == nil {
+					wsHub.SendToUser(userID, b)
+				}
+			}
+		}
+	}
 	
 	// Worker Pool
 	workerPool := queue.NewWorkerPool(queue.WorkerPoolConfig{
@@ -81,6 +177,7 @@ func main() {
 		RedisClient:      redisClient,
 		QueueManager:     queueManager,
 		WSHub:            wsHub,
+		AIService:        aiService,
 	}
 
 	// Start server

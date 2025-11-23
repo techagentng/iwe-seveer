@@ -23,6 +23,9 @@ type Hub struct {
 
 	// Mutex for thread-safe operations
 	mu sync.RWMutex
+
+	// Optional callback for inbound messages from clients
+	OnMessage func(userID uuid.UUID, payload []byte)
 }
 
 // Message represents a message to be sent to a specific user
@@ -112,6 +115,11 @@ func (h *Hub) broadcastToUser(message *Message) {
 			}
 		}
 	}
+}
+
+// SendToUser enqueues a payload to all active connections for a user
+func (h *Hub) SendToUser(userID uuid.UUID, payload []byte) {
+	h.broadcast <- &Message{UserID: userID, Payload: payload}
 }
 
 // BroadcastToUser queues a message to be sent to a specific user

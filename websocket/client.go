@@ -74,8 +74,10 @@ func (c *Client) readPump() {
 		// Log received message (optional - for debugging)
 		log.Printf("📨 Received message from user %s: %s", c.UserID, string(message))
 
-		// You can handle incoming messages here if needed
-		// For now, we're primarily using WebSocket for server->client updates
+		// Forward inbound messages to hub callback (if defined)
+		if c.hub.OnMessage != nil {
+			c.hub.OnMessage(c.UserID, message)
+		}
 	}
 }
 
