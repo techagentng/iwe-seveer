@@ -101,4 +101,14 @@ func (s *Server) defineRoutes(router *gin.Engine) {
 	{
 		aiRoutes.POST("/analyze", s.handleAIAnalyze())
 	}
+
+	// Chat routes (authentication required)
+	chatRoutes := apirouter.Group("/chat")
+	chatRoutes.Use(s.Authorize())
+	{
+		chatRoutes.POST("/conversations", s.handleCreateConversation())
+		chatRoutes.GET("/conversations", s.handleListConversations())
+		chatRoutes.GET("/conversations/:id/messages", s.handleGetMessages())
+		chatRoutes.POST("/messages", s.handlePostMessage())
+	}
 }

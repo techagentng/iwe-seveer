@@ -98,9 +98,30 @@ func main() {
 			// Start streaming
 			ctx, cancel := context.WithCancel(context.Background())
 			aiCancels.Store(msg.MessageID, cancel)
-			go func(messageID string, prompt string, doc string, uid uuid.UUID) {
+			go func(messageID string, prompt string, initialDoc string, jobIDStr string, uid uuid.UUID) {
 				var full string
-				streamErr := aiService.AnalyzeDocumentStream(ctx, doc, prompt, func(chunk string) {
+				// Resolve document text: prefer provided DocumentText; otherwise, load by jobId
+				docText := initialDoc
+				if docText == "" && jobIDStr != "" {
+					if jID, err := uuid.Parse(jobIDStr); err == nil {
+						if job, err := uploadRepo.GetProcessingJobByID(jID); err == nil && job != nil {
+							if job.ExtractedText != "" {
+								docText = job.ExtractedText
+							} else {
+								// fallback: reconstruct from chunks by fileID
+								if chunks, err := uploadRepo.GetDocumentChunksByFileID(job.FileID); err == nil {
+									var combined string
+									for _, ch := range chunks {
+										combined += ch.Content + "\n\n"
+									}
+									docText = combined
+								}
+							}
+						}
+					}
+				}
+
+				streamErr := aiService.AnalyzeDocumentStream(ctx, docText, prompt, func(chunk string) {
 					full += chunk
 					// stream_chunk (isLastChunk=false)
 					resp := map[string]any{
@@ -131,7 +152,7 @@ func main() {
 					}
 				}
 				aiCancels.Delete(messageID)
-			}(msg.MessageID, msg.Content, msg.DocumentText, userID)
+			}(msg.MessageID, msg.Content, msg.DocumentText, msg.JobID, userID)
 
 		case "cancel":
 			if v, ok := aiCancels.Load(msg.MessageID); ok {

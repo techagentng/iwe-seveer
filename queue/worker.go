@@ -314,10 +314,10 @@ func (w *Worker) updateJobStatus(job *models.ProcessingJob, status models.JobSta
 		log.Printf("Warning: failed to update job in database: %v", err)
 	}
 
-	// Send WebSocket notification
+	// Send WebSocket notification (camelCase fields)
 	wsMessage := map[string]interface{}{
 		"type":     "job_update",
-		"job_id":   job.ID.String(),
+		"jobId":    job.ID.String(),
 		"status":   string(status),
 		"progress": progress,
 		"message":  message,
@@ -349,13 +349,14 @@ func (w *Worker) handleJobFailure(job *models.ProcessingJob, err error) {
 		log.Printf("Error updating failed job in Redis: %v", updateErr)
 	}
 
-	// Notify user via WebSocket
+	// Notify user via WebSocket as a unified job_update with error status
 	wsMessage := map[string]interface{}{
-		"type":    "job_failed",
-		"job_id":  job.ID.String(),
-		"status":  "failed",
-		"error":   err.Error(),
-		"retries": job.RetryCount,
+		"type":     "job_update",
+		"jobId":    job.ID.String(),
+		"status":   "error",
+		"progress": job.Progress,
+		"message":  err.Error(),
+		"retries":  job.RetryCount,
 	}
 
 	w.sendWebSocketMessage(job.UserID, wsMessage)
@@ -375,11 +376,11 @@ func (w *Worker) handleJobFailure(job *models.ProcessingJob, err error) {
 // notifyJobComplete sends completion notification via WebSocket
 func (w *Worker) notifyJobComplete(job *models.ProcessingJob) {
 	message := map[string]interface{}{
-		"type":        "job_completed",
-		"job_id":      job.ID.String(),
+		"type":        "job_update",
+		"jobId":       job.ID.String(),
 		"status":      "completed",
 		"progress":    100,
-		"ai_response": job.AIResponse,
+		"aiResponse":  job.AIResponse,
 		"duration":    job.Duration().Seconds(),
 	}
 
