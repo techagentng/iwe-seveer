@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/textract"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/textract"
+	"github.com/aws/aws-sdk-go-v2/service/textract/types"
 	"github.com/google/uuid"
 	"github.com/techagentng/iweapp/db"
 	"github.com/techagentng/iweapp/models"
@@ -151,39 +152,41 @@ func (p *MediaProcessor) performHybridOCR(fileURL string, fileType models.FileTy
 
 // performTextractOCR performs OCR using AWS Textract (production implementation)
 func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
+	ctx := context.TODO()
 	log.Printf("[AWS TEXTRACT] Processing document from %s", fileURL)
-	
+
 	// Extract S3 bucket and key from URL
 	// Format: https://citizenx.s3.eu-north-1.amazonaws.com/uploads/user-id/file-id.pdf
 	bucket, key, err := extractS3BucketAndKey(fileURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse S3 URL: %w", err)
 	}
-	
+
 	log.Printf("[AWS TEXTRACT] Bucket: %s, Key: %s", bucket, key)
-	
-	// Create AWS session
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String("eu-north-1"), // Match your S3 region
-	})
+
+	// Load the AWS configuration
+	cfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithRegion("eu-north-1"),
+	)
 	if err != nil {
-		return "", fmt.Errorf("failed to create AWS session: %w", err)
+		return "", fmt.Errorf("unable to load AWS config: %w", err)
 	}
-	
-	// Create Textract client
-	svc := textract.New(sess)
+
+	// Create Textract client with the configuration
+	svc := textract.NewFromConfig(cfg)
 	
 	// Call DetectDocumentText for simple text extraction
 	input := &textract.DetectDocumentTextInput{
-		Document: &textract.Document{
-			S3Object: &textract.S3Object{
+		Document: &types.Document{
+			S3Object: &types.S3Object{
 				Bucket: aws.String(bucket),
 				Name:   aws.String(key),
 			},
 		},
 	}
-	
-	result, err := svc.DetectDocumentText(input)
+
+	// Execute the Textract API call
+	result, err := svc.DetectDocumentText(ctx, input)
 	if err != nil {
 		return "", fmt.Errorf("textract API error: %w", err)
 	}
@@ -193,7 +196,7 @@ func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
 	lineCount := 0
 	
 	for _, block := range result.Blocks {
-		if block.BlockType != nil && *block.BlockType == "LINE" {
+		if block.BlockType == types.BlockTypeLine {
 			if block.Text != nil {
 				extractedText.WriteString(*block.Text)
 				extractedText.WriteString("\n")
@@ -212,23 +215,47 @@ func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
 }
 
 // extractS3BucketAndKey extracts bucket and key from S3 URL
+// Supports formats:
+// 1. https://bucket.s3.region.amazonaws.com/key
+// 2. https://s3.region.amazonaws.com/bucket/key
+// 3. https://s3.amazonaws.com/bucket/key
 func extractS3BucketAndKey(fileURL string) (string, string, error) {
-	// Parse URL: https://bucket.s3.region.amazonaws.com/key
+	// Remove protocol if present
+	fileURL = strings.TrimPrefix(fileURL, "https://")
+	fileURL = strings.TrimPrefix(fileURL, "http://")
+
 	parts := strings.Split(fileURL, "/")
-	if len(parts) < 4 {
-		return "", "", fmt.Errorf("invalid S3 URL format")
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("invalid S3 URL format: %s", fileURL)
 	}
-	
-	// Extract bucket from domain
-	domain := strings.Split(parts[2], ".")
-	if len(domain) < 1 {
-		return "", "", fmt.Errorf("invalid S3 domain")
+
+	var bucket, key string
+	domainParts := strings.Split(parts[0], ".")
+
+	// Check for path-style URL (s3.region.amazonaws.com/bucket/key)
+	if len(domainParts) >= 3 && 
+	   (strings.HasSuffix(parts[0], ".amazonaws.com") || 
+	    strings.Contains(parts[0], "s3.")) {
+		if len(parts) < 3 {
+			return "", "", fmt.Errorf("missing bucket or key in path-style URL: %s", fileURL)
+		}
+		bucket = parts[1]
+		key = strings.Join(parts[2:], "/")
+	} else {
+		// Virtual-hosted style URL (bucket.s3.region.amazonaws.com/key)
+		bucket = domainParts[0]
+		key = strings.Join(parts[1:], "/")
 	}
-	bucket := domain[0]
-	
-	// Extract key (everything after domain)
-	key := strings.Join(parts[3:], "/")
-	
+
+	if bucket == "" {
+		return "", "", fmt.Errorf("could not extract bucket from URL: %s", fileURL)
+	}
+
+	// Remove any query parameters from the key
+	if questionMark := strings.Index(key, "?"); questionMark != -1 {
+		key = key[:questionMark]
+	}
+
 	return bucket, key, nil
 }
 
