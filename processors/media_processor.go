@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -165,15 +164,13 @@ func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
 
 	log.Printf("[AWS TEXTRACT] Bucket: %s, Key: %s", bucket, key)
 
-	// Get AWS region from environment or use default
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = "eu-west-1" 
-	}
+	// Force Textract to use eu-west-1 as it's not available in all regions
+	textractRegion := "eu-west-1"
+	log.Printf("[AWS TEXTRACT] Using region: %s", textractRegion)
 
-	// Load the AWS configuration with the region from environment
+	// Load the AWS configuration with the Textract region
 	cfg, err := awsconfig.LoadDefaultConfig(ctx,
-		awsconfig.WithRegion(region),
+		awsconfig.WithRegion(textractRegion),
 	)
 	if err != nil {
 		return "", fmt.Errorf("unable to load AWS config: %w", err)
