@@ -70,14 +70,13 @@ func (s *S3Storage) UploadFile(file io.Reader, header *multipart.FileHeader, use
 		contentType = "application/octet-stream"
 	}
 
-	// Upload to S3
+	// Upload to S3 without ACL (rely on bucket policies for access control)
 	_, err = s.client.PutObject(&s3.PutObjectInput{
 		Bucket:        aws.String(s.bucket),
 		Key:           aws.String(filename),
 		Body:          bytes.NewReader(fileBytes),
 		ContentType:   aws.String(contentType),
 		ContentLength: aws.Int64(int64(len(fileBytes))),
-		ACL:           aws.String("public-read"),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to upload to S3: %w", err)
