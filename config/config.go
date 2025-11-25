@@ -13,7 +13,7 @@ import (
 type Config struct {
 	Debug                        bool   `envconfig:"debug"`
 	Port                         int    `envconfig:"port"`
-	DatabaseURL                  string `envconfig:"database_url"` 
+	DatabaseURL                  string `envconfig:"database_url"`
 	PostgresHost                 string `envconfig:"postgres_host"`
 	PostgresUser                 string `envconfig:"postgres_user"`
 	PostgresDB                   string `envconfig:"postgres_db"`
@@ -37,18 +37,19 @@ type Config struct {
 	AccessControlAllowOrigin     string `envconfig:"accessc_control_allow_origin"`
 	AWS_BUCKET                   string `envconfig:"aws_bucket"`
 	AWS_REGION                   string `envconfig:"aws_region"`
+	S3_REGION                    string `envconfig:"s3_region"`
 	AWS_ACCESS_KEY_ID            string `envconfig:"aws_access_key_id"`
 	AWS_SECRET_ACCESS_KEY        string `envconfig:"aws_secret_access_key"`
-	FRONTEND_URL        string `envconfig:"frontend_url"`
-	GOOGLE_CLOUD_PROJECT string `envconfig:"google_cloud_project"`
-	
+	FRONTEND_URL                 string `envconfig:"frontend_url"`
+	GOOGLE_CLOUD_PROJECT         string `envconfig:"google_cloud_project"`
+
 	// Redis Configuration
 	RedisURL      string `envconfig:"redis_url"`      // For production (Render/Railway)
 	RedisHost     string `envconfig:"redis_host"`     // For local development
 	RedisPort     string `envconfig:"redis_port"`     // For local development
 	RedisPassword string `envconfig:"redis_password"` // Optional
 	RedisDB       int    `envconfig:"redis_db"`       // Default 0
-	
+
 	// OpenAI Configuration
 	OpenAIAPIKey string `envconfig:"openai_api_key"` // OpenAI API key for GPT-4o-mini
 }
@@ -58,7 +59,7 @@ func (c *Config) GetDBUrl() string {
 	if c.DatabaseURL != "" {
 		return c.DatabaseURL
 	}
-	
+
 	// Otherwise, construct from individual fields
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
@@ -76,7 +77,7 @@ func (c *Config) GetRedisAddr() string {
 		// Remove redis:// scheme if present
 		addr := strings.TrimPrefix(c.RedisURL, "redis://")
 		addr = strings.TrimPrefix(addr, "rediss://") // Also handle TLS
-		
+
 		// If there's a password in the URL (redis://user:pass@host:port), extract just host:port
 		if strings.Contains(addr, "@") {
 			parts := strings.Split(addr, "@")
@@ -92,10 +93,10 @@ func (c *Config) GetRedisAddr() string {
 				return parts[1] // Return host:port
 			}
 		}
-		
+
 		return addr
 	}
-	
+
 	// Otherwise, construct from host:port (local development)
 	if c.RedisHost == "" {
 		c.RedisHost = "localhost"
@@ -103,7 +104,7 @@ func (c *Config) GetRedisAddr() string {
 	if c.RedisPort == "" {
 		c.RedisPort = "6379"
 	}
-	
+
 	return fmt.Sprintf("%s:%s", c.RedisHost, c.RedisPort)
 }
 

@@ -27,8 +27,14 @@ type S3Storage struct {
 
 // NewS3Storage creates a new S3Storage instance
 func NewS3Storage(cfg *config.Config) (*S3Storage, error) {
+	// Prefer explicit S3 region if provided; otherwise fall back to AWS region
+	s3Region := cfg.S3_REGION
+	if s3Region == "" {
+		s3Region = cfg.AWS_REGION
+	}
+
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(cfg.AWS_REGION),
+		Region: aws.String(s3Region),
 		Credentials: credentials.NewStaticCredentials(
 			cfg.AWS_ACCESS_KEY_ID,
 			cfg.AWS_SECRET_ACCESS_KEY,
@@ -42,7 +48,7 @@ func NewS3Storage(cfg *config.Config) (*S3Storage, error) {
 	return &S3Storage{
 		client:     s3.New(sess),
 		bucket:     cfg.AWS_BUCKET,
-		region:     cfg.AWS_REGION,
+		region:     s3Region,
 		folderName: "uploads", // Default folder
 	}, nil
 }
@@ -98,7 +104,7 @@ func SaveFileLocally(file multipart.File, header *multipart.FileHeader, userID u
 	// Create uploads directory if it doesn't exist
 	uploadDir := "./uploads"
 	userDir := filepath.Join(uploadDir, userID.String())
-	
+
 	// Generate unique filename
 	ext := filepath.Ext(header.Filename)
 	timestamp := time.Now().Format("20060102-150405")
@@ -106,7 +112,7 @@ func SaveFileLocally(file multipart.File, header *multipart.FileHeader, userID u
 	filePath := filepath.Join(userDir, filename)
 
 	log.Printf("File would be saved locally to: %s", filePath)
-	
+
 	// Return relative path (actual file saving would happen here in production)
 	return fmt.Sprintf("/uploads/%s/%s", userID.String(), filename), nil
 }

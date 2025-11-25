@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	vision "cloud.google.com/go/vision/apiv1"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/textract"
@@ -14,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/techagentng/iweapp/db"
 	"github.com/techagentng/iweapp/models"
-	vision "cloud.google.com/go/vision/apiv1"
 )
 
 // OCRProvider represents the OCR service provider
@@ -101,9 +101,9 @@ func (p *MediaProcessor) selectOCRProvider(fileName string, fileType models.File
 	// Strategy:
 	// - PDFs & files with "statement", "invoice", "receipt" → AWS Textract (better for structured documents)
 	// - Images & files with "handwritten", "note", "scan" → Google Cloud Vision (better for handwriting)
-	
+
 	fileNameLower := strings.ToLower(fileName)
-	
+
 	// Check for bank statements, invoices, receipts (use Textract)
 	if strings.Contains(fileNameLower, "statement") ||
 		strings.Contains(fileNameLower, "bank") ||
@@ -112,7 +112,7 @@ func (p *MediaProcessor) selectOCRProvider(fileName string, fileType models.File
 		fileType == models.FileTypePDF {
 		return OCRProviderTextract
 	}
-	
+
 	// Check for handwritten notes, scans (use Vision)
 	if strings.Contains(fileNameLower, "handwritten") ||
 		strings.Contains(fileNameLower, "note") ||
@@ -120,7 +120,7 @@ func (p *MediaProcessor) selectOCRProvider(fileName string, fileType models.File
 		strings.Contains(fileNameLower, "signature") {
 		return OCRProviderVision
 	}
-	
+
 	// Default routing by file type
 	if fileType == models.FileTypePDF {
 		return OCRProviderTextract // PDFs → Textract
@@ -138,13 +138,13 @@ func (p *MediaProcessor) performHybridOCR(fileURL string, fileType models.FileTy
 			return p.performTextractOCR(fileURL)
 		}
 		return p.mockTextractOCR(fileURL)
-		
+
 	case OCRProviderVision:
 		if p.visionEnabled {
 			return p.performVisionOCR(fileURL)
 		}
 		return p.mockVisionOCR(fileURL)
-		
+
 	default:
 		return "", fmt.Errorf("unsupported OCR provider: %s", provider)
 	}
@@ -178,7 +178,7 @@ func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
 
 	// Create Textract client with the configuration
 	svc := textract.NewFromConfig(cfg)
-	
+
 	// Call DetectDocumentText for simple text extraction
 	input := &textract.DetectDocumentTextInput{
 		Document: &types.Document{
@@ -194,11 +194,11 @@ func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("textract API error: %w", err)
 	}
-	
+
 	// Extract text from blocks
 	var extractedText strings.Builder
 	lineCount := 0
-	
+
 	for _, block := range result.Blocks {
 		if block.BlockType == types.BlockTypeLine {
 			if block.Text != nil {
@@ -208,13 +208,13 @@ func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
 			}
 		}
 	}
-	
+
 	log.Printf("[AWS TEXTRACT] Extracted %d lines of text", lineCount)
-	
+
 	if extractedText.Len() == 0 {
 		return "", fmt.Errorf("no text found in document")
 	}
-	
+
 	return extractedText.String(), nil
 }
 
@@ -234,12 +234,9 @@ func extractS3BucketAndKey(fileURL string) (string, string, error) {
 	}
 
 	var bucket, key string
-	domainParts := strings.Split(parts[0], ".")
-
-	// Check for path-style URL (s3.region.amazonaws.com/bucket/key)
-	if len(domainParts) >= 3 && 
-	   (strings.HasSuffix(parts[0], ".amazonaws.com") || 
-	    strings.Contains(parts[0], "s3.")) {
+	host := parts[0]
+	// Path-style URL if host starts with s3.* or s3-*
+	if strings.HasPrefix(host, "s3.") || strings.HasPrefix(host, "s3-") || host == "s3.amazonaws.com" {
 		if len(parts) < 3 {
 			return "", "", fmt.Errorf("missing bucket or key in path-style URL: %s", fileURL)
 		}
@@ -247,6 +244,7 @@ func extractS3BucketAndKey(fileURL string) (string, string, error) {
 		key = strings.Join(parts[2:], "/")
 	} else {
 		// Virtual-hosted style URL (bucket.s3.region.amazonaws.com/key)
+		domainParts := strings.Split(host, ".")
 		bucket = domainParts[0]
 		key = strings.Join(parts[1:], "/")
 	}
@@ -266,39 +264,39 @@ func extractS3BucketAndKey(fileURL string) (string, string, error) {
 // performVisionOCR performs OCR using Google Cloud Vision (production implementation)
 func (p *MediaProcessor) performVisionOCR(fileURL string) (string, error) {
 	log.Printf("[GOOGLE VISION] Processing image from %s", fileURL)
-	
+
 	ctx := context.Background()
-	
+
 	// Create Vision API client
 	client, err := vision.NewImageAnnotatorClient(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to create vision client: %w", err)
 	}
 	defer client.Close()
-	
+
 	// Create image from URI (S3 URL)
 	image := vision.NewImageFromURI(fileURL)
-	
+
 	// Detect document text (best for handwriting and dense text)
 	annotation, err := client.DetectDocumentText(ctx, image, nil)
 	if err != nil {
 		return "", fmt.Errorf("vision API error: %w", err)
 	}
-	
+
 	// Extract text from annotation
 	if annotation == nil || annotation.Text == "" {
 		return "", fmt.Errorf("no text found in image")
 	}
-	
+
 	log.Printf("[GOOGLE VISION] Extracted %d characters of text", len(annotation.Text))
-	
+
 	return annotation.Text, nil
 }
 
 // mockTextractOCR simulates AWS Textract OCR (for PDFs and structured documents)
 func (p *MediaProcessor) mockTextractOCR(fileURL string) (string, error) {
 	log.Printf("[MOCK AWS TEXTRACT] Processing structured document from %s", fileURL)
-	
+
 	mockText := `
 ═══════════════════════════════════════════════════════════
               AWS TEXTRACT - MOCK OCR RESULT
@@ -363,7 +361,7 @@ would provide actual extracted text with high accuracy for:
 // mockVisionOCR simulates Google Cloud Vision OCR (for images and handwritten notes)
 func (p *MediaProcessor) mockVisionOCR(fileURL string) (string, error) {
 	log.Printf("[MOCK GOOGLE VISION] Processing image/handwritten document from %s", fileURL)
-	
+
 	mockText := `
 ═══════════════════════════════════════════════════════════
           GOOGLE CLOUD VISION - MOCK OCR RESULT
@@ -455,7 +453,7 @@ func (p *MediaProcessor) chunkText(text string, chunkSize int) []string {
 		}
 
 		chunk := string(runes[i:end])
-		
+
 		// Try to break at word boundary if not at the end
 		if end < len(runes) {
 			lastSpace := strings.LastIndex(chunk, " ")
