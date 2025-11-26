@@ -56,7 +56,7 @@ func SeedRoles(db *gorm.DB) error {
 	for _, roleName := range roles {
 		var existingRole models.Role
 		err := db.Where("name = ?", roleName).First(&existingRole).Error
-		
+
 		if err == gorm.ErrRecordNotFound {
 			// Role doesn't exist, create it
 			newRole := models.Role{
@@ -92,10 +92,11 @@ func migrate(db *gorm.DB) error {
 		&models.ProcessingJob{},
 		&models.Conversation{},
 		&models.Message{},
+		&models.Contact{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run auto migrations: %w", err)
 	}
-	
+
 	return nil
 }

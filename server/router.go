@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"time"
-	
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/techagentng/iweapp/websocket"
@@ -50,7 +50,7 @@ func (s *Server) setupRouter() *gin.Engine {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-	
+
 	// Increase memory limit for multipart forms
 	r.MaxMultipartMemory = 32 << 20
 	s.defineRoutes(r)
@@ -60,7 +60,7 @@ func (s *Server) setupRouter() *gin.Engine {
 
 func (s *Server) defineRoutes(router *gin.Engine) {
 	apirouter := router.Group("/api/v1")
-	
+
 	// WebSocket endpoints
 	// Unified endpoint supports both authenticated and public connections
 	router.GET("/ws", s.OptionalAuthorize(), websocket.HandleWebSocketAuto(s.WSHub))
@@ -69,15 +69,16 @@ func (s *Server) defineRoutes(router *gin.Engine) {
 	// Health check for WebSocket service
 	router.GET("/ws/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status":       "ok",
-			"connected":    s.WSHub.GetConnectedUsers(),
+			"status":    "ok",
+			"connected": s.WSHub.GetConnectedUsers(),
 		})
 	})
-	
+
 	// Public routes (no authentication required)
 	apirouter.POST("/auth/signup", s.handleSignup())
 	apirouter.POST("/auth/login", s.handleLogin())
 	apirouter.POST("/google/user/login", s.handleGoogleLogin())
+	apirouter.POST("/contact", s.handleContact())
 
 	// Protected routes (authentication required)
 	authorized := apirouter.Group("/auth")
