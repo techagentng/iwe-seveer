@@ -1,6 +1,7 @@
 package processors
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -9,7 +10,7 @@ import (
 
 	vision "cloud.google.com/go/vision/apiv1"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/textract"
 	"github.com/aws/aws-sdk-go-v2/service/textract/types"
 	"github.com/google/uuid"
@@ -157,65 +158,74 @@ func (p *MediaProcessor) performTextractOCR(fileURL string) (string, error) {
 
 	// Extract S3 bucket and key from URL
 	// Format: https://citizenx.s3.eu-north-1.amazonaws.com/uploads/user-id/file-id.pdf
-	bucket, key, err := extractS3BucketAndKey(fileURL)
+	sourceBucket, sourceKey, err := extractS3BucketAndKey(fileURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse S3 URL: %w", err)
 	}
 
-	log.Printf("[AWS TEXTRACT] Bucket: %s, Key: %s", bucket, key)
+	log.Printf("[AWS TEXTRACT] Source - Bucket: %s, Key: %s", sourceBucket, sourceKey)
 
-	// Force Textract to use eu-west-1 as it's not available in all regions
-	textractRegion := "eu-west-1"
-	log.Printf("[AWS TEXTRACT] Using region: %s", textractRegion)
+	// Regions
+	textractRegion := "eu-north-1"
+	sourceS3Region := "eu-north-1"
+	log.Printf("[AWS TEXTRACT] Using Textract region: %s, S3 source region: %s", textractRegion, sourceS3Region)
 
-	// Load the AWS configuration with the Textract region
-	cfg, err := awsconfig.LoadDefaultConfig(ctx,
-		awsconfig.WithRegion(textractRegion),
-	)
+	// 2. Create S3 client with the source bucket's region
+	s3Client := s3.NewFromConfig(aws.Config{
+		Region: sourceS3Region,
+	})
+
+	// 3. Download the file content
+	result, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(sourceBucket),
+		Key:    aws.String(sourceKey),
+	})
 	if err != nil {
-		return "", fmt.Errorf("unable to load AWS config: %w", err)
+		return "", fmt.Errorf("failed to get object from S3: %w", err)
 	}
+	defer result.Body.Close()
 
-	// Create Textract client with the configuration
-	svc := textract.NewFromConfig(cfg)
+	// 4. Create Textract client with the correct region
+	textractClient := textract.NewFromConfig(aws.Config{
+		Region: textractRegion,
+	})
 
-	// Call DetectDocumentText for simple text extraction
-	input := &textract.DetectDocumentTextInput{
+	// 5. Call Textract with the file content
+	textractResult, err := textractClient.DetectDocumentText(ctx, &textract.DetectDocumentTextInput{
 		Document: &types.Document{
-			S3Object: &types.S3Object{
-				Bucket: aws.String(bucket),
-				Name:   aws.String(key),
-			},
+			Bytes: func() []byte {
+				buf := new(bytes.Buffer)
+				buf.ReadFrom(result.Body)
+				return buf.Bytes()
+			}(),
 		},
-	}
+	})
 
-	// Execute the Textract API call
-	result, err := svc.DetectDocumentText(ctx, input)
+	// 8. Handle Textract error if any
 	if err != nil {
 		return "", fmt.Errorf("textract API error: %w", err)
 	}
 
-	// Extract text from blocks
-	var extractedText strings.Builder
+	// 6. Extract and return the text
+	var textBuilder strings.Builder
 	lineCount := 0
 
-	for _, block := range result.Blocks {
-		if block.BlockType == types.BlockTypeLine {
-			if block.Text != nil {
-				extractedText.WriteString(*block.Text)
-				extractedText.WriteString("\n")
-				lineCount++
-			}
+	for _, block := range textractResult.Blocks {
+		if block.BlockType == types.BlockTypeLine && block.Text != nil {
+			textBuilder.WriteString(*block.Text)
+			textBuilder.WriteString("\n")
+			lineCount++
 		}
 	}
 
 	log.Printf("[AWS TEXTRACT] Extracted %d lines of text", lineCount)
 
-	if extractedText.Len() == 0 {
+	if textBuilder.Len() == 0 {
 		return "", fmt.Errorf("no text found in document")
 	}
 
-	return extractedText.String(), nil
+	log.Printf("[AWS TEXTRACT] Successfully extracted text from document")
+	return textBuilder.String(), nil
 }
 
 // extractS3BucketAndKey extracts bucket and key from S3 URL
